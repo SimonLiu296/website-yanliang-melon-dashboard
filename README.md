@@ -21,9 +21,8 @@ CSV 下载：`/export/csv/<table_name>`（带 UTF-8 BOM）
 
 ```
 website-yanliang-melon-dashboard/
-├── app.py              # Flask 应用（读 Neon：pd.read_sql + 进程内缓存）
-├── api/index.py        # Vercel 函数入口（from app import app）
-├── vercel.json         # rewrite → /api/index，区域 sin1
+├── app.py              # Flask 应用（读 Neon：pd.read_sql + 进程内缓存；Vercel 框架入口）
+├── vercel.json         # 项目配置（函数区域在 Dashboard → Settings → Functions 设置）
 ├── requirements.txt    # flask/pandas/sqlalchemy/psycopg[binary]/python-dotenv
 ├── seed.py             # CSV 快照 → Neon 灌库 + 行数对账 + meta 表
 ├── .env                # 真实 DATABASE_URL（已 gitignore，不提交）
@@ -72,14 +71,14 @@ vercel env add DATABASE_URL
 # 提示 Paste 时，粘贴 .env 中 DATABASE_URL= 后面的整行连接串（不含 DATABASE_URL=）
 ```
 
-- 区域已固定 `sin1`（新加坡），与 Neon ap-southeast-1 同区。
-- `vercel.json` 已配 rewrite：所有路径进 `/api/index` 函数；`public/**` 由 CDN 直出。
+- Vercel 按 Flask **框架预设**直接托管根目录 `app.py`（原生路径路由，无需 rewrite）；
+  `public/**` 由 CDN 直出。不要在 `vercel.json` 里配 rewrite——内部重写会把
+  PATH_INFO 覆盖成目标路径，导致 404 JSON（历史故障根因）。
+- 函数区域（新加坡 `sin1`，与 Neon 同区）：Dashboard → Settings → Functions →
+  Serverless Region 选 `Singapore (sin1)`。
 - GitHub 导入备选：推送本文件夹到仓库子目录 → Vercel Import 时 Root Directory 填
   `website-yanliang-melon-dashboard`；`.env` 不会随仓库上传（已 gitignore），
   记得在 Vercel 项目 Settings → Environment Variables 里设置 `DATABASE_URL`。
-- 若 Vercel 构建提示根目录 `app.py` 与 `api/index.py` 冲突（少见）：
-  把 `app.py` 改名为 `webapp.py` 并同步改 `api/index.py` 的 import
-  （`from webapp import app`），即可消除根目录入口歧义。
 
 ## 故障排查
 
