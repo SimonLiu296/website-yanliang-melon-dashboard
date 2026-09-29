@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}规格价格分析 · 阎良甜瓜数据看板{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <h1>规格价格分析</h1>
+  <p>不同净重规格（斤）下的单价水平：折线图看趋势，表格看明细。</p>
+</section>
+
+<div class="card">
+  <div class="card-title">净重 vs 单价（元/斤）</div>
+  <div class="chart" id="chart-spec"></div>
+</div>
+
+<div class="card">
+  <div class="card-title">规格价格明细</div>
+  <div class="table-wrap">
+    <table class="table" id="spec-table">
+      <thead>
+        <tr>
+          <th>净重规格(斤)</th><th>SKU 数</th><th>平均单价</th>
+          <th>中位单价</th><th>最低单价</th><th>最高单价</th>
+        </tr>
+      </thead>
+      <tbody><tr><td colspan="6" class="empty">加载中…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function num(v, d) {
+    if (v === null || v === undefined) return null;
+    return d === undefined ? v : Number(v).toFixed(d);
+  }
+
+  getJSON('/api/spec').then(function (data) {
+    var chart = chartOf('chart-spec');
+    if (chart) {
+      chart.setOption({
+        tooltip: { trigger: 'axis' },
+        legend: { bottom: 0, data: ['平均单价', '中位单价', '最低单价', '最高单价'] },
+        grid: { left: 55, right: 30, top: 30, bottom: 70 },
+        xAxis: {
+          type: 'category', name: '净重(斤)', boundaryGap: false,
+          data: data.weight.map(function (v) { return v + ' 斤'; }),
+          axisLabel: { rotate: 45 }
+        },
+        yAxis: { type: 'value', name: '元/斤' },
+        series: [
+          { name: '平均单价', type: 'line', smooth: true, symbolSize: 8,
+            lineStyle: { width: 3 }, itemStyle: { color: '#f2a93b' }, data: data.avg },
+          { name: '中位单价', type: 'line', smooth: true, symbolSize: 6,
+            lineStyle: { width: 2 }, itemStyle: { color: '#3f8efc' }, data: data.median },
+          { name: '最低单价', type: 'line', smooth: true, symbol: 'none',
+            lineStyle: { width: 1, type: 'dashed' }, itemStyle: { color: '#22b07d' }, data: data.low },
+          { name: '最高单价', type: 'line', smooth: true, symbol: 'none',
+            lineStyle: { width: 1, type: 'dashed' }, itemStyle: { color: '#e2574c' }, data: data.high }
+        ]
+      });
+      onResize(function () { chart.resize(); });
+    }
+
+    var html = '';
+    data.table.forEach(function (r) {
+      html += '<tr>'
+        + '<td>' + (r['净重规格'] ?? '-') + '</td>'
+        + '<td>' + (r['SKU数'] ?? '-') + '</td>'
+        + '<td>' + (r['平均单价元/斤'] == null ? '-' : Number(r['平均单价元/斤']).toFixed(2)) + '</td>'
+        + '<td>' + (r['中位单价元/斤'] == null ? '-' : Number(r['中位单价元/斤']).toFixed(2)) + '</td>'
+        + '<td>' + (r['最低单价元/斤'] == null ? '-' : Number(r['最低单价元/斤']).toFixed(2)) + '</td>'
+        + '<td>' + (r['最高单价元/斤'] == null ? '-' : Number(r['最高单价元/斤']).toFixed(2)) + '</td>'
+        + '</tr>';
+    });
+    document.querySelector('#spec-table tbody').innerHTML =
+      html || '<tr><td colspan="6" class="empty">暂无数据</td></tr>';
+  }).catch(function (e) {
+    showBoxError('chart-spec', '规格数据加载失败：' + e.message);
+  });
+</script>
+{% endblock %}

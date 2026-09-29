@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}平台对比 · 阎良甜瓜数据看板{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <h1>平台对比</h1>
+  <p>京东与淘宝在商品规模、价格水平与评分表现上的横向对比。</p>
+</section>
+
+<div class="grid-3">
+  <div class="card">
+    <div class="card-title">平均单价（元/斤）</div>
+    <div class="chart chart-sm" id="chart-unit"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">SKU 数</div>
+    <div class="chart chart-sm" id="chart-sku"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">平均评分（1~5 分）</div>
+    <div class="chart chart-sm" id="chart-rating"></div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-title">商品均价 vs 中位价（元）</div>
+    <div class="chart" id="chart-price"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">平台明细表</div>
+    <div class="table-wrap">
+      <table class="table" id="platform-table">
+        <thead>
+          <tr>
+            <th>平台</th><th>商品数</th><th>SKU 数</th><th>平均价格</th>
+            <th>中位价格</th><th>平均单价(元/斤)</th><th>平均评分</th><th>评论总数</th>
+          </tr>
+        </thead>
+        <tbody><tr><td colspan="8" class="empty">加载中…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function fmt(v, digits) {
+    if (v === null || v === undefined || (typeof v === 'number' && isNaN(v))) return '-';
+    return digits === undefined ? v : Number(v).toFixed(digits);
+  }
+
+  function bar(id, categories, name, values, color, digits) {
+    var c = chartOf(id);
+    if (!c) return;
+    c.setOption({
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' },
+        formatter: function (ps) {
+          var p = ps[0];
+          return p.name + '<br/>' + name + '：' + fmt(p.value, digits);
+        } },
+      grid: { left: 50, right: 20, top: 30, bottom: 30 },
+      xAxis: { type: 'category', data: categories },
+      yAxis: { type: 'value', name: name },
+      series: [{
+        name: name, type: 'bar', barMaxWidth: 60,
+        itemStyle: { color: color, borderRadius: [6, 6, 0, 0] },
+        label: { show: true, position: 'top', formatter: function (p) { return fmt(p.value, digits); } },
+        data: values
+      }]
+    });
+    onResize(function () { c.resize(); });
+  }
+
+  getJSON('/api/platform').then(function (data) {
+    var cats = data.categories;
+
+    bar('chart-unit', cats, '平均单价', data.unit_price, '#f2a93b', 2);
+    bar('chart-sku', cats, 'SKU 数', data.sku_count, '#3f8efc', 0);
+    bar('chart-rating', cats, '平均评分', data.rating, '#22b07d', 2);
+
+    var pc = chartOf('chart-price');
+    if (pc) {
+      pc.setOption({
+        tooltip: { trigger: 'axis' },
+        legend: { bottom: 0 },
+        grid: { left: 50, right: 20, top: 30, bottom: 60 },
+        xAxis: { type: 'category', data: data.categories },
+        yAxis: { type: 'value', name: '元' },
+        series: [
+          { name: '平均价格', type: 'bar', barMaxWidth: 46, itemStyle: { color: '#3f8efc', borderRadius: [6, 6, 0, 0] }, data: data.avg_price },
+          { name: '中位价格', type: 'bar', barMaxWidth: 46, itemStyle: { color: '#9bbcf9', borderRadius: [6, 6, 0, 0] }, data: data.median_price }
+        ]
+      });
+      onResize(function () { pc.resize(); });
+    }
+
+    var html = '';
+    data.table.forEach(function (r) {
+      html += '<tr>'
+        + '<td>' + (r['平台'] || '-') + '</td>'
+        + '<td>' + fmt(r['商品数']) + '</td>'
+        + '<td>' + fmt(r['SKU数']) + '</td>'
+        + '<td>' + fmt(r['平均价格'], 2) + '</td>'
+        + '<td>' + fmt(r['中位价格'], 2) + '</td>'
+        + '<td>' + fmt(r['平均单价元/斤'], 2) + '</td>'
+        + '<td>' + fmt(r['平均评分'], 2) + '</td>'
+        + '<td>' + fmt(r['评论总数']) + '</td>'
+        + '</tr>';
+    });
+    document.querySelector('#platform-table tbody').innerHTML =
+      html || '<tr><td colspan="8" class="empty">暂无数据</td></tr>';
+  }).catch(function (e) {
+    showBoxError('chart-unit', '平台数据加载失败：' + e.message);
+  });
+</script>
+{% endblock %}

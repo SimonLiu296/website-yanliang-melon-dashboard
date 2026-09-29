@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}产业概览 · 阎良甜瓜数据看板{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <h1>产业概览</h1>
+  <p>阎良甜瓜电商平台的商品、SKU、价格与评论总量一览。</p>
+</section>
+
+<div class="kpi-grid" id="kpi-grid">
+  <div class="kpi"><span class="kpi-label">商品数</span><b class="kpi-value" id="kpi-product">--</b></div>
+  <div class="kpi"><span class="kpi-label">SKU 数</span><b class="kpi-value" id="kpi-sku">--</b></div>
+  <div class="kpi"><span class="kpi-label">平均单价</span><b class="kpi-value" id="kpi-unit">--</b><i>元/斤</i></div>
+  <div class="kpi"><span class="kpi-label">平均售价</span><b class="kpi-value" id="kpi-price">--</b><i>元</i></div>
+  <div class="kpi"><span class="kpi-label">评论数</span><b class="kpi-value" id="kpi-review">--</b></div>
+  <div class="kpi"><span class="kpi-label">品种 / 平台</span><b class="kpi-value" id="kpi-variety">--</b></div>
+</div>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-title">平台商品分布</div>
+    <div class="chart" id="chart-platform-pie"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">商品最新价格分布（元）</div>
+    <div class="chart" id="chart-price-hist"></div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-title">品种商品数 Top8</div>
+    <div class="chart" id="chart-variety"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">数据说明</div>
+    <div class="note">
+      <ul>
+        <li>所有指标均由本地 CSV 实时计算，无数据库依赖。</li>
+        <li>「平均单价」取 SKU 明细表 <code>单价元/斤</code> 均值。</li>
+        <li>「平均售价」取商品主表 <code>最新价</code> 均值。</li>
+        <li>价格分布直方图基于商品主表 <code>最新价</code>，分 10 组。</li>
+        <li>更多明细可在 <a href="/export">数据导出</a> 页下载原始 CSV。</li>
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  getJSON('/api/overview').then(function (d) {
+    var k = d.kpis;
+    document.getElementById('kpi-product').textContent = k.product_count;
+    document.getElementById('kpi-sku').textContent = k.sku_count;
+    document.getElementById('kpi-unit').textContent = k.avg_unit_price == null ? '-' : k.avg_unit_price;
+    document.getElementById('kpi-price').textContent = k.avg_product_price == null ? '-' : k.avg_product_price;
+    document.getElementById('kpi-review').textContent = k.review_count;
+    document.getElementById('kpi-variety').textContent = k.variety_count + ' / ' + k.platform_count;
+
+    var pie = chartOf('chart-platform-pie');
+    if (pie) {
+      pie.setOption({
+        tooltip: { trigger: 'item', formatter: '{b}<br/>{c} 个商品（{d}%）' },
+        legend: { bottom: 0 },
+        series: [{
+          type: 'pie', radius: ['40%', '65%'], center: ['50%', '45%'],
+          itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 },
+          label: { formatter: '{b}\n{c}' },
+          data: d.platform_pie
+        }]
+      });
+      onResize(function () { pie.resize(); });
+    }
+
+    var hist = chartOf('chart-price-hist');
+    if (hist) {
+      hist.setOption({
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+        grid: { left: 50, right: 20, top: 30, bottom: 60 },
+        xAxis: {
+          type: 'category', data: d.price_histogram.bins,
+          axisLabel: { rotate: 45, fontSize: 11 }
+        },
+        yAxis: { type: 'value', name: '商品数' },
+        series: [{
+          name: '商品数', type: 'bar', barMaxWidth: 36,
+          itemStyle: { color: '#f2a93b', borderRadius: [4, 4, 0, 0] },
+          data: d.price_histogram.counts
+        }]
+      });
+      onResize(function () { hist.resize(); });
+    }
+
+    var vb = chartOf('chart-variety');
+    if (vb) {
+      var varieties = d.variety_bar.slice().reverse();
+      vb.setOption({
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+        grid: { left: 90, right: 30, top: 20, bottom: 30 },
+        xAxis: { type: 'value', name: '商品数' },
+        yAxis: { type: 'category', data: varieties.map(function (x) { return x.name; }) },
+        series: [{
+          type: 'bar', barMaxWidth: 20,
+          itemStyle: { color: '#3f8efc', borderRadius: [0, 4, 4, 0] },
+          label: { show: true, position: 'right' },
+          data: varieties.map(function (x) { return x.value; })
+        }]
+      });
+      onResize(function () { vb.resize(); });
+    }
+  }).catch(function (e) {
+    showBoxError('kpi-grid', '概览数据加载失败：' + e.message);
+  });
+</script>
+{% endblock %}

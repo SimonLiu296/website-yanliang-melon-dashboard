@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}数据导出 · 阎良甜瓜数据看板{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <h1>数据导出</h1>
+  <p>以下 CSV 均来自本地处理结果，点击即可下载（UTF-8 BOM，Excel 可直接打开）。</p>
+</section>
+
+<div class="card">
+  <div class="card-title">可下载数据表</div>
+  <div class="table-wrap">
+    <table class="table" id="export-table">
+      <thead>
+        <tr>
+          <th>数据表</th><th>逻辑名称</th><th>当前数据文件</th><th>数据日期</th>
+          <th>行数</th><th>大小</th><th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tables %}
+        <tr>
+          <td><strong>{{ t.label }}</strong></td>
+          <td><code>{{ t.name }}</code></td>
+          <td class="path"><code>{{ t.file }}</code></td>
+          <td>{{ t.date }}</td>
+          <td>{{ t.rows }}</td>
+          <td>{{ t.size }}</td>
+          <td><a class="btn" href="/export/csv/{{ t.name }}">下载 CSV</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="empty">暂无可导出的数据</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">说明</div>
+  <div class="note">
+    <ul>
+      <li>下载地址格式：<code>/export/csv/&lt;table_name&gt;</code>，始终导出「当前数据文件」。</li>
+      <li>数据文件命名为 <code>表名_YYYYMMDD[_HHMM].csv</code>，看板默认自动选用<b>日期最新</b>的一份。</li>
+      <li>所有文件以 <code>UTF-8 BOM</code> 编码返回，中文在 Excel 中不乱码。</li>
+      <li>表格内容更新后（新日期文件或 mtime 变化），看板会自动重新读取。</li>
+    </ul>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}评论情感分析 · 阎良甜瓜数据看板{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <h1>评论情感分析</h1>
+  <p>基于评论文本的情感打分：四个维度得分、词频 Top20 与可搜索的评论列表。</p>
+</section>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-title">四维度平均得分（加权，0~1）</div>
+    <div class="chart" id="chart-dims"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">词频 Top20</div>
+    <div class="chart" id="chart-keywords"></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">
+    评论列表
+    <span class="card-extra" id="review-total">--</span>
+  </div>
+  <div class="search-bar">
+    <input type="search" id="review-q" placeholder="搜索评论内容或用户名，如：甜、新鲜、京东…" />
+    <button id="review-search" type="button">搜索</button>
+    <button id="review-reset" type="button" class="ghost">重置</button>
+  </div>
+  <div class="table-wrap">
+    <table class="table" id="review-table">
+      <thead>
+        <tr>
+          <th style="width:70px">商品</th>
+          <th style="width:90px">用户</th>
+          <th>内容</th>
+          <th style="width:60px">评分</th>
+          <th style="width:150px">情感(甜/口/鲜/物)</th>
+        </tr>
+      </thead>
+      <tbody><tr><td colspan="5" class="empty">加载中…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function loadReviews(q) {
+    var url = '/api/sentiment?limit=50' + (q ? '&q=' + encodeURIComponent(q) : '');
+    return getJSON(url).then(function (d) {
+      document.getElementById('review-total').textContent = '匹配 ' + d.reviews.total + ' 条';
+      var html = '';
+      d.reviews.items.forEach(function (r) {
+        var scores = [r.sweet_score, r.taste_score, r.fresh_score, r.logistics_score]
+          .map(function (v) { return v == null ? '-' : v; }).join(' / ');
+        html += '<tr>'
+          + '<td>#' + (r['商品FK'] == null ? '-' : r['商品FK']) + '</td>'
+          + '<td>' + esc(r['用户']) + '</td>'
+          + '<td class="review-text">' + esc(r['内容']) + '</td>'
+          + '<td>' + (r['评分'] == null ? '-' : Number(r['评分']).toFixed(1)) + '</td>'
+          + '<td>' + scores + '</td>'
+          + '</tr>';
+      });
+      document.querySelector('#review-table tbody').innerHTML =
+        html || '<tr><td colspan="5" class="empty">没有匹配的评论</td></tr>';
+    });
+  }
+
+  getJSON('/api/sentiment').then(function (d) {
+    var dims = chartOf('chart-dims');
+    if (dims) {
+      dims.setOption({
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' },
+          formatter: function (ps) {
+            var p = ps[0];
+            return p.name + '<br/>平均得分：' + Number(p.value).toFixed(4)
+              + '<br/>（占比 ' + (Number(p.value) * 100).toFixed(1) + '%）';
+          } },
+        grid: { left: 55, right: 30, top: 40, bottom: 40 },
+        xAxis: { type: 'category', data: d.dimensions.categories },
+        yAxis: { type: 'value', name: '得分', max: 1 },
+        series: [{
+          name: '平均得分', type: 'bar', barMaxWidth: 56,
+          itemStyle: { color: '#22b07d', borderRadius: [6, 6, 0, 0] },
+          label: { show: true, position: 'top', formatter: function (p) { return Number(p.value).toFixed(3); } },
+          data: d.dimensions.values
+        }],
+        title: {
+          text: '整体好评率 ' + (Number(d.dimensions.overall) * 100).toFixed(1) + '%',
+          right: 10, top: 6, textStyle: { fontSize: 13, color: '#8a94a6' }
+        }
+      });
+      onResize(function () { dims.resize(); });
+    }
+
+    var kwData = d.keywords.words.map(function (w, i) {
+      return { value: d.keywords.freqs[i], name: w };
+    }).reverse();
+    var kw = chartOf('chart-keywords');
+    if (kw) {
+      kw.setOption({
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' },
+          formatter: function (ps) { return ps[0].name + '：' + ps[0].value + ' 次'; } },
+        grid: { left: 70, right: 40, top: 20, bottom: 30 },
+        xAxis: { type: 'value', name: '频次' },
+        yAxis: { type: 'category', data: kwData.map(function (x) { return x.name; }) },
+        series: [{
+          name: '词频', type: 'bar', barMaxWidth: 16,
+          itemStyle: { color: '#f2a93b', borderRadius: [0, 4, 4, 0] },
+          label: { show: true, position: 'right' },
+          data: kwData.map(function (x) { return x.value; })
+        }]
+      });
+      onResize(function () { kw.resize(); });
+    }
+
+    return loadReviews('');
+  }).catch(function (e) {
+    showBoxError('chart-dims', '情感数据加载失败：' + e.message);
+  });
+
+  function doSearch() {
+    var q = document.getElementById('review-q').value.trim();
+    var tbody = document.querySelector('#review-table tbody');
+    tbody.innerHTML = '<tr><td colspan="5" class="empty">加载中…</td></tr>';
+    loadReviews(q).catch(function (e) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty">加载失败：' + esc(e.message) + '</td></tr>';
+    });
+  }
+
+  document.getElementById('review-search').addEventListener('click', doSearch);
+  document.getElementById('review-q').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') doSearch();
+  });
+  document.getElementById('review-reset').addEventListener('click', function () {
+    document.getElementById('review-q').value = '';
+    doSearch();
+  });
+</script>
+{% endblock %}

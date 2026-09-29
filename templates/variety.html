@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}品种分析 · 阎良甜瓜数据看板{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <h1>品种分析</h1>
+  <p>各品种的平均单价对比，以及结合评论情感的品种口碑表现。</p>
+</section>
+
+<div class="grid-2">
+  <div class="card">
+    <div class="card-title">品种平均单价（元/斤）</div>
+    <div class="chart" id="chart-variety-price"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">品种 SKU 规模</div>
+    <div class="chart" id="chart-variety-sku"></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">品种明细</div>
+  <div class="table-wrap">
+    <table class="table" id="variety-table">
+      <thead>
+        <tr>
+          <th>品种</th><th>商品数</th><th>SKU 数</th><th>平均单价</th>
+          <th>中位单价</th><th>平均评分</th>
+        </tr>
+      </thead>
+      <tbody><tr><td colspan="6" class="empty">加载中…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">品种口碑（基于评论情感打分）</div>
+  <div class="table-wrap">
+    <table class="table" id="rep-table">
+      <thead>
+        <tr>
+          <th>品种</th><th>评论数</th><th>甜度得分</th><th>口感得分</th>
+          <th>整体好评率</th><th>平均评分</th>
+        </tr>
+      </thead>
+      <tbody><tr><td colspan="6" class="empty">加载中…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function val(v, d) {
+    if (v === null || v === undefined || (typeof v === 'number' && isNaN(v))) return '-';
+    return d === undefined ? v : Number(v).toFixed(d);
+  }
+
+  getJSON('/api/variety').then(function (data) {
+    var price = chartOf('chart-variety-price');
+    if (price) {
+      price.setOption({
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+        grid: { left: 55, right: 20, top: 30, bottom: 80 },
+        xAxis: { type: 'category', data: data.categories, axisLabel: { rotate: 40 } },
+        yAxis: { type: 'value', name: '元/斤' },
+        series: [{
+          name: '平均单价', type: 'bar', barMaxWidth: 34,
+          itemStyle: { color: '#f2a93b', borderRadius: [5, 5, 0, 0] },
+          label: { show: true, position: 'top', formatter: function (p) { return val(p.value, 2); } },
+          data: data.avg_price
+        }]
+      });
+      onResize(function () { price.resize(); });
+    }
+
+    var sku = chartOf('chart-variety-sku');
+    if (sku) {
+      sku.setOption({
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+        grid: { left: 55, right: 20, top: 30, bottom: 80 },
+        xAxis: { type: 'category', data: data.categories, axisLabel: { rotate: 40 } },
+        yAxis: { type: 'value', name: 'SKU 数' },
+        series: [{
+          name: 'SKU 数', type: 'bar', barMaxWidth: 34,
+          itemStyle: { color: '#3f8efc', borderRadius: [5, 5, 0, 0] },
+          data: data.sku_count
+        }]
+      });
+      onResize(function () { sku.resize(); });
+    }
+
+    var rows = '';
+    data.table.forEach(function (r) {
+      rows += '<tr>'
+        + '<td>' + val(r['品种']) + '</td>'
+        + '<td>' + val(r['商品数']) + '</td>'
+        + '<td>' + val(r['SKU数']) + '</td>'
+        + '<td>' + val(r['平均单价元/斤'], 2) + '</td>'
+        + '<td>' + val(r['中位单价元/斤'], 2) + '</td>'
+        + '<td>' + val(r['平均评分'], 2) + '</td>'
+        + '</tr>';
+    });
+    document.querySelector('#variety-table tbody').innerHTML =
+      rows || '<tr><td colspan="6" class="empty">暂无数据</td></tr>';
+
+    var repRows = '';
+    (data.reputation || []).forEach(function (r) {
+      repRows += '<tr>'
+        + '<td>' + val(r['品种']) + '</td>'
+        + '<td>' + val(r['评论数']) + '</td>'
+        + '<td>' + val(r['甜度得分'], 1) + '</td>'
+        + '<td>' + val(r['口感得分'], 1) + '</td>'
+        + '<td>' + val(r['整体好评率'], 1) + '</td>'
+        + '<td>' + val(r['平均评分'], 2) + '</td>'
+        + '</tr>';
+    });
+    document.querySelector('#rep-table tbody').innerHTML =
+      repRows || '<tr><td colspan="6" class="empty">暂无评论数据</td></tr>';
+  }).catch(function (e) {
+    showBoxError('chart-variety-price', '品种数据加载失败：' + e.message);
+  });
+</script>
+{% endblock %}
